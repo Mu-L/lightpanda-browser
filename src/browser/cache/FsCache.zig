@@ -60,6 +60,7 @@ fn hashKey(key: []const u8) [64]u8 {
 }
 
 fn serializeMeta(writer: *std.Io.Writer, meta: *const CachedMetadata) !void {
+    try writer.print("{s}\n", .{meta.url});
     try writer.print("{d}\n{d}\n{d}\n{d}\n", .{
         meta.status,
         meta.stored_at,
@@ -90,6 +91,8 @@ fn deserializeMeta(allocator: std.mem.Allocator, bytes: []const u8) !CachedMetad
     _ = allocator;
 
     var iter = std.mem.splitScalar(u8, bytes, '\n');
+
+    const url = iter.next() orelse return error.Malformed;
 
     const status = std.fmt.parseInt(
         u16,
@@ -135,6 +138,7 @@ fn deserializeMeta(allocator: std.mem.Allocator, bytes: []const u8) !CachedMetad
     );
 
     return .{
+        .url = url,
         .status = status,
         .stored_at = stored_at,
         .age_at_store = age_at_store,

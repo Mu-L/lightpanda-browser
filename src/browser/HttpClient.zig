@@ -41,6 +41,8 @@ pub const Headers = Net.Headers;
 pub const ResponseHead = Net.ResponseHead;
 pub const HeaderIterator = Net.HeaderIterator;
 
+const CachedResponse = @import("../browser/cache/Cache.zig").CachedResponse;
+
 // This is loosely tied to a browser Page. Loading all the <scripts>, doing
 // XHR requests, and loading imports all happens through here. Sine the app
 // currently supports 1 browser and 1 page at-a-time, we only have 1 Client and
@@ -962,39 +964,49 @@ pub const Response = struct {
     ctx: *anyopaque, // copied from req.ctx to make it easier for callback handlers
     inner: union(enum) {
         transfer: *Transfer,
+        cached: *const CachedResponse,
     },
 
     pub fn fromTransfer(transfer: *Transfer) Response {
         return .{ .ctx = transfer.req.ctx, .inner = .{ .transfer = transfer } };
     }
 
+    pub fn fromCached(ctx: *anyopaque, resp: *const CachedResponse) Response {
+        return .{ .ctx = ctx, .inner = .{ .cached = resp } };
+    }
+
     pub fn status(self: Response) ?u16 {
         return switch (self.inner) {
             .transfer => |transfer| if (transfer.response_header) |rh| rh.status else null,
+            .cached => |cached| cached.metadata.status,
         };
     }
 
     pub fn contentType(self: Response) ?[]const u8 {
         return switch (self.inner) {
             .transfer => |transfer| if (transfer.response_header) |*rh| rh.contentType() else null,
+            .cached => |_| "N/A",
         };
     }
 
     pub fn contentLength(self: Response) ?u32 {
         return switch (self.inner) {
             .transfer => |transfer| transfer.getContentLength(),
+            .cached => |cached| @intCast(cached.data.file.len),
         };
     }
 
     pub fn redirectCount(self: Response) ?u32 {
         return switch (self.inner) {
             .transfer => |transfer| if (transfer.response_header) |rh| rh.redirect_count else null,
+            .cached => 0,
         };
     }
 
     pub fn url(self: Response) [:0]const u8 {
         return switch (self.inner) {
             .transfer => |transfer| transfer.url,
+            .cached => |cached| cached.metadata.url,
         };
     }
 
@@ -1003,12 +1015,14 @@ pub const Response = struct {
     pub fn abort(self: Response, err: anyerror) void {
         switch (self.inner) {
             .transfer => |transfer| transfer.abort(err),
+            .cached => {},
         }
     }
 
     pub fn terminate(self: Response) void {
         switch (self.inner) {
             .transfer => |transfer| transfer.terminate(),
+            .cached => {},
         }
     }
 };

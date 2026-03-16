@@ -56,6 +56,7 @@ pub const CachedData = union(enum) {
 };
 
 pub const CachedMetadata = struct {
+    url: []const u8,
     status: u16,
     stored_at: i64,
     age_at_store: u64,
